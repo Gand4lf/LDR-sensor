@@ -1,0 +1,64 @@
+import spidev
+import time
+import os
+ 
+# Open SPI bus
+spi = spidev.SpiDev()
+spi.open(0,0)
+spi.max_speed_hz=1000000
+diningroom=0
+# Function to read SPI data from MCP3008 chip
+# Channel must be an integer 0-7
+def ReadChannel(channel):
+  adc = spi.xfer2([1,(8+channel)<<4,0])
+  data = ((adc[1]&3) << 8) + adc[2]
+  return data
+ 
+# Define sensor channels
+light1_channel = 0
+light2_channel = 1
+ 
+from multiprocessing import Process, Value
+import multiprocessing
+DR=0
+
+def loop_L1():
+    global DR
+    while True:
+       
+        # Read the sensor data
+        light2_level = ReadChannel(light2_channel)  
+        light1_level = ReadChannel(light1_channel)
+        # Print out results
+        if light1_level>650:
+            #print("Light1: {} ({}V)".format(light1_level))
+            if light2_level>650:
+                print ("---GOING OUT---")
+                DR-=1
+                print(DR)
+            time.sleep(1)
+       
+def loop_L2():
+    global DR
+    while True:
+       
+        # Read the sensor data
+        light2_level = ReadChannel(light2_channel)
+        light1_level = ReadChannel(light1_channel)
+        if light2_level>650:
+            #print("Light2 : {} ({}V)".format(light2_level))
+            if light1_level>650:
+                print("---GOING IN---")
+                DR+=1
+                print(DR)
+            time.sleep(1)
+#This next part is supposed to run the two functions L1 and L2 simultaneously, however, the variable DR outside the functions 
+#is unaffected after someone enters or leaves the room so I can't act on the outcome. Hope this makes sense.
+if __name__ == '__main__':
+    p1=Process(target=loop_L1)
+    p1.start()
+    p2=Process(target=loop_L2)
+    p2.start()
+    p1.join()
+    p2.join()
+
